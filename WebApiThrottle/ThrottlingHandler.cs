@@ -1,13 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.ServiceModel.Channels;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web;
 using WebApiThrottle.Net;
 
 namespace WebApiThrottle
@@ -53,9 +49,9 @@ namespace WebApiThrottle
         /// <param name="ipAddressParser">
         /// The IpAddressParser
         /// </param>
-        public ThrottlingHandler(ThrottlePolicy policy, 
-            IPolicyRepository policyRepository, 
-            IThrottleRepository repository, 
+        public ThrottlingHandler(ThrottlePolicy policy,
+            IPolicyRepository policyRepository,
+            IThrottleRepository repository,
             IThrottleLogger logger,
             IIpAddressParser ipAddressParser = null)
         {
@@ -129,7 +125,12 @@ namespace WebApiThrottle
         /// </summary>
         public HttpStatusCode QuotaExceededResponseCode { get; set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        /// <summary>
+        /// Gets or sets a flag that will be used to know if concurrency issues are delegated to repositories
+        /// </summary>
+        public bool RepositorySynchronized { get; set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             // get policy from repo
             if (policyRepository != null)
@@ -139,7 +140,7 @@ namespace WebApiThrottle
 
             if (policy == null || (!policy.IpThrottling && !policy.ClientThrottling && !policy.EndpointThrottling))
             {
-                return base.SendAsync(request, cancellationToken);
+                return await base.SendAsync(request, cancellationToken);
             }
 
             core.Repository = Repository;
@@ -149,7 +150,7 @@ namespace WebApiThrottle
 
             if (core.IsWhitelisted(identity))
             {
-                return base.SendAsync(request, cancellationToken);
+                return await base.SendAsync(request, cancellationToken);
             }
 
             TimeSpan timeSpan = TimeSpan.FromSeconds(1);
@@ -178,7 +179,18 @@ namespace WebApiThrottle
                 {
                     // increment counter
                     string requestId;
-                    var throttleCounter = core.ProcessRequest(identity, timeSpan, rateLimitPeriod, out requestId);
+                    ThrottleCounter throttleCounter;
+
+                    if (!RepositorySynchronized)
+                    {
+                        throttleCounter = core.ProcessRequest(identity, timeSpan, rateLimitPeriod, out requestId);
+                    }
+                    else
+                    {
+                        var keyValue = await core.ProcessRequestAsync(identity, timeSpan, rateLimitPeriod);
+                        throttleCounter = keyValue.Key;
+                        requestId = keyValue.Value;
+                    }
 
                     // check if key expired
                     if (throttleCounter.Timestamp + timeSpan < DateTime.UtcNow)
@@ -195,8 +207,8 @@ namespace WebApiThrottle
                             Logger.Log(core.ComputeLogEntry(requestId, identity, throttleCounter, rateLimitPeriod.ToString(), rateLimit, request));
                         }
 
-                        var message = !string.IsNullOrEmpty(this.QuotaExceededMessage) 
-                            ? this.QuotaExceededMessage 
+                        var message = !string.IsNullOrEmpty(this.QuotaExceededMessage)
+                            ? this.QuotaExceededMessage
                             : "API calls quota exceeded! maximum admitted {0} per {1}.";
 
                         var content = this.QuotaExceededContent != null
@@ -204,7 +216,7 @@ namespace WebApiThrottle
                             : string.Format(message, rateLimit, rateLimitPeriod);
 
                         // break execution
-                        return QuotaExceededResponse(
+                        return await QuotaExceededResponse(
                             request,
                             content,
                             QuotaExceededResponseCode,
@@ -214,7 +226,7 @@ namespace WebApiThrottle
             }
 
             // no throttling required
-            return base.SendAsync(request, cancellationToken);
+            return await base.SendAsync(request, cancellationToken);
         }
 
         protected IPAddress GetClientIp(HttpRequestMessage request)
@@ -227,8 +239,8 @@ namespace WebApiThrottle
             var entry = new RequestIdentity();
             entry.ClientIp = core.GetClientIp(request).ToString();
             entry.Endpoint = request.RequestUri.AbsolutePath.ToLowerInvariant();
-            entry.ClientKey = request.Headers.Contains("Authorization-Token") 
-                ? request.Headers.GetValues("Authorization-Token").First() 
+            entry.ClientKey = request.Headers.Contains("Authorization-Token")
+                ? request.Headers.GetValues("Authorization-Token").First()
                 : "anon";
 
             return entry;

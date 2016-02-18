@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Caching;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace WebApiThrottle
@@ -12,7 +11,13 @@ namespace WebApiThrottle
     /// </summary>
     public class MemoryCacheRepository : IThrottleRepository
     {
-        ObjectCache memCache = MemoryCache.Default;
+        readonly MemoryCache memCache = MemoryCache.Default;
+        private static readonly object ProcessLocker = new object();
+
+        public IDictionary<string, object> Data
+        {
+            get { return memCache.ToDictionary(o => o.Key, o => o.Value); }
+        }
 
         /// <summary>
         /// Insert or update
@@ -56,6 +61,41 @@ namespace WebApiThrottle
             {
                 memCache.Remove(cacheKey);
             }
+        }
+
+        public Task<ThrottleCounter> IncAsync(string id, TimeSpan expirationTime)
+        {
+            return Task.Run(() =>
+            {
+                lock (ProcessLocker)
+                {
+                    var throttleCounter = new ThrottleCounter()
+                    {
+                        Timestamp = DateTime.UtcNow,
+                        TotalRequests = 1
+                    };
+
+                    if (memCache.Contains(id))
+                    {
+                        throttleCounter = (ThrottleCounter)memCache[id];
+                        throttleCounter.TotalRequests++;
+                        memCache[id] = throttleCounter;
+                    }
+                    else
+                    {
+                        memCache.Add(
+                            id,
+                            throttleCounter,
+                            new CacheItemPolicy()
+                            {
+
+                                SlidingExpiration = expirationTime
+                            });
+                    }
+
+                    return throttleCounter;
+                }
+            });
         }
     }
 }

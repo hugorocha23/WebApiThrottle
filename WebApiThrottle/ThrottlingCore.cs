@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Threading.Tasks;
 using WebApiThrottle.Net;
 
 namespace WebApiThrottle
@@ -144,7 +145,7 @@ namespace WebApiThrottle
             {
                 hashBytes = algorithm.ComputeHash(idBytes);
             }
-            
+
             var hex = BitConverter.ToString(hashBytes).Replace("-", string.Empty);
             return hex;
         }
@@ -215,6 +216,15 @@ namespace WebApiThrottle
             }
 
             return throttleCounter;
+        }
+
+        internal async Task<KeyValuePair<ThrottleCounter, string>> ProcessRequestAsync(RequestIdentity requestIdentity, TimeSpan timeSpan, RateLimitPeriod period)
+        {
+            var id = ComputeThrottleKey(requestIdentity, period);
+
+            var throttleCounter = await Repository.IncAsync(id, timeSpan);
+
+            return new KeyValuePair<ThrottleCounter, string>(throttleCounter, id);
         }
 
         internal TimeSpan GetTimeSpanFromPeriod(RateLimitPeriod rateLimitPeriod)

@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Http.Controllers;
 using System.Web.Http.Filters;
@@ -54,10 +53,10 @@ namespace WebApiThrottle
         /// <param name="ipAddressParser">
         /// The ip address provider
         /// </param>
-        public ThrottlingFilter(ThrottlePolicy policy, 
-            IPolicyRepository policyRepository, 
-            IThrottleRepository repository, 
-            IThrottleLogger logger, 
+        public ThrottlingFilter(ThrottlePolicy policy,
+            IPolicyRepository policyRepository,
+            IThrottleRepository repository,
+            IThrottleLogger logger,
             IIpAddressParser ipAddressParser = null)
         {
             core = new ThrottlingCore();
@@ -129,13 +128,23 @@ namespace WebApiThrottle
         /// </summary>
         public HttpStatusCode QuotaExceededResponseCode { get; set; }
 
-        public override void OnActionExecuting(HttpActionContext actionContext)
+        /// <summary>
+        /// Gets or sets a flag that will be used to know if concurrency issues are delegated to repositories
+        /// </summary>
+        public bool RepositorySynchronized { get; set; }
+
+        /// <summary>
+        /// Gets or sets a flag that will be used to know if action filter needs attribute usage for enable/disable throttling
+        /// </summary>
+        public bool AlwaysApplyThrottling { get; set; }
+
+        public override async Task OnActionExecutingAsync(HttpActionContext actionContext, CancellationToken cancellationToken)
         {
             EnableThrottlingAttribute attrPolicy = null;
-            var applyThrottling = ApplyThrottling(actionContext, out attrPolicy);
+            var applyThrottling = AlwaysApplyThrottling || ApplyThrottling(actionContext, out attrPolicy);
 
             // get policy from repo
-            if(policyRepository != null)
+            if (policyRepository != null)
             {
                 policy = policyRepository.FirstOrDefault(ThrottleManager.GetPolicyKey());
             }
@@ -169,10 +178,13 @@ namespace WebApiThrottle
                         timeSpan = core.GetTimeSpanFromPeriod(rateLimitPeriod);
 
                         // apply EnableThrottlingAttribute policy
-                        var attrLimit = attrPolicy.GetLimit(rateLimitPeriod);
-                        if (attrLimit > 0)
+                        if (attrPolicy != null)
                         {
-                            rateLimit = attrLimit;
+                            var attrLimit = attrPolicy.GetLimit(rateLimitPeriod);
+                            if (attrLimit > 0)
+                            {
+                                rateLimit = attrLimit;
+                            }
                         }
 
                         // apply global rules
@@ -182,7 +194,18 @@ namespace WebApiThrottle
                         {
                             // increment counter
                             string requestId;
-                            var throttleCounter = core.ProcessRequest(identity, timeSpan, rateLimitPeriod, out requestId);
+                            ThrottleCounter throttleCounter;
+
+                            if (!RepositorySynchronized)
+                            {
+                                throttleCounter = core.ProcessRequest(identity, timeSpan, rateLimitPeriod, out requestId);
+                            }
+                            else
+                            {
+                                var keyValue = await core.ProcessRequestAsync(identity, timeSpan, rateLimitPeriod);
+                                throttleCounter = keyValue.Key;
+                                requestId = keyValue.Value;
+                            }
 
                             // check if key expired
                             if (throttleCounter.Timestamp + timeSpan < DateTime.UtcNow)
@@ -199,8 +222,8 @@ namespace WebApiThrottle
                                     Logger.Log(core.ComputeLogEntry(requestId, identity, throttleCounter, rateLimitPeriod.ToString(), rateLimit, actionContext.Request));
                                 }
 
-                                var message = !string.IsNullOrEmpty(this.QuotaExceededMessage) 
-                                    ? this.QuotaExceededMessage 
+                                var message = !string.IsNullOrEmpty(this.QuotaExceededMessage)
+                                    ? this.QuotaExceededMessage
                                     : "API calls quota exceeded! maximum admitted {0} per {1}.";
 
                                 var content = this.QuotaExceededContent != null
@@ -218,8 +241,7 @@ namespace WebApiThrottle
                     }
                 }
             }
-
-            base.OnActionExecuting(actionContext);
+            await base.OnActionExecutingAsync(actionContext, cancellationToken);
         }
 
         protected virtual RequestIdentity SetIndentity(HttpRequestMessage request)

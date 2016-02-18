@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace WebApiThrottle
@@ -42,6 +39,11 @@ namespace WebApiThrottle
                 }
             }
 
+            if (!Any(id))
+            {
+                return null;
+            }
+
             return new ThrottleCounter
             {
                 Timestamp = entry.Timestamp,
@@ -70,6 +72,41 @@ namespace WebApiThrottle
         public void Clear()
         {
             cache.Clear();
+        }
+
+        public Task<ThrottleCounter> IncAsync(string id, TimeSpan expirationTime)
+        {
+            return Task.Run(() =>
+            {
+                var now = DateTime.UtcNow;
+                var entry = new ThrottleCounterWrapper
+                {
+                    ExpirationTime = expirationTime,
+                    Timestamp = now,
+                    TotalRequests = 1
+                };
+
+                cache.AddOrUpdate(id, entry, (key, old) =>
+                {
+                    if (old.Timestamp + expirationTime < now)
+                    {
+                        old.Timestamp = now;
+                        old.TotalRequests = 1;
+                    }
+                    else
+                    {
+                        old.TotalRequests++;
+                    }
+                    entry = old;
+                    return old;
+                });
+
+                return new ThrottleCounter
+                {
+                    Timestamp = entry.Timestamp,
+                    TotalRequests = entry.TotalRequests
+                };
+            });
         }
 
         [Serializable]

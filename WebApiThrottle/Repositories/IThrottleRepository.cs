@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace WebApiThrottle
@@ -20,5 +17,7 @@ namespace WebApiThrottle
         void Remove(string id);
 
         void Clear();
+
+        Task<ThrottleCounter> IncAsync(string id, TimeSpan expirationTime);
     }
 }

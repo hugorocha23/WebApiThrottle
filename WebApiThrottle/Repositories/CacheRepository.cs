@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 using System.Web.Caching;
@@ -13,6 +10,8 @@ namespace WebApiThrottle
     /// </summary>
     public class CacheRepository : IThrottleRepository
     {
+        private static readonly object ProcessLocker = new object();
+
         /// <summary>
         /// Insert or update
         /// </summary>
@@ -69,6 +68,45 @@ namespace WebApiThrottle
                     HttpContext.Current.Cache.Remove(cacheEnumerator.Key.ToString());
                 }
             }
+        }
+
+        public Task<ThrottleCounter> IncAsync(string id, TimeSpan expirationTime)
+        {
+            return Task.Factory.StartNew(
+                state =>
+                {
+                    var httpContext = (HttpContext)state;
+
+                    lock (ProcessLocker)
+                    {
+                        var throttleCounter = new ThrottleCounter()
+                        {
+                            Timestamp = DateTime.UtcNow,
+                            TotalRequests = 1
+                        };
+
+                        if (httpContext.Cache[id] != null)
+                        {
+                            throttleCounter = (ThrottleCounter)httpContext.Cache[id];
+                            throttleCounter.TotalRequests++;
+                            httpContext.Cache[id] = throttleCounter;
+                        }
+                        else
+                        {
+                            httpContext.Cache.Add(
+                                id,
+                                throttleCounter,
+                                null,
+                                Cache.NoAbsoluteExpiration,
+                                expirationTime,
+                                CacheItemPriority.Low,
+                                null);
+                        }
+
+                        return throttleCounter;
+                    }
+                },
+                HttpContext.Current);
         }
     }
 }
