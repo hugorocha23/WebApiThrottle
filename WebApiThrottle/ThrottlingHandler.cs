@@ -178,19 +178,19 @@ namespace WebApiThrottle
                 if (rateLimit > 0)
                 {
                     // increment counter
-                    string requestId;
-                    ThrottleCounter throttleCounter;
+                    ThrottleKeyCounter throttleKeyCounter;
 
                     if (!RepositorySynchronized)
                     {
-                        throttleCounter = core.ProcessRequest(identity, timeSpan, rateLimitPeriod, out requestId);
+                        throttleKeyCounter = core.ProcessRequest(identity, timeSpan, rateLimitPeriod);
                     }
                     else
                     {
-                        var keyValue = await core.ProcessRequestAsync(identity, timeSpan, rateLimitPeriod);
-                        throttleCounter = keyValue.Key;
-                        requestId = keyValue.Value;
+                        throttleKeyCounter = await core.ProcessRequestAsync(identity, timeSpan, rateLimitPeriod);          
                     }
+
+                    var throttleCounter = throttleKeyCounter.ThrottleCounter;
+                    var requestId = throttleKeyCounter.Key;
 
                     // check if key expired
                     if (throttleCounter.Timestamp + timeSpan < DateTime.UtcNow)

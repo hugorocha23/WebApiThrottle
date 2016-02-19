@@ -11,13 +11,8 @@ namespace WebApiThrottle
     /// </summary>
     public class MemoryCacheRepository : IThrottleRepository
     {
-        readonly MemoryCache memCache = MemoryCache.Default;
+        readonly ObjectCache memCache = MemoryCache.Default;
         private static readonly object ProcessLocker = new object();
-
-        public IDictionary<string, object> Data
-        {
-            get { return memCache.ToDictionary(o => o.Key, o => o.Value); }
-        }
 
         /// <summary>
         /// Insert or update
@@ -69,29 +64,29 @@ namespace WebApiThrottle
             {
                 lock (ProcessLocker)
                 {
-                    var throttleCounter = new ThrottleCounter()
-                    {
-                        Timestamp = DateTime.UtcNow,
-                        TotalRequests = 1
-                    };
+                    ThrottleCounter throttleCounter;
 
                     if (memCache.Contains(id))
                     {
                         throttleCounter = (ThrottleCounter)memCache[id];
                         throttleCounter.TotalRequests++;
                         memCache[id] = throttleCounter;
+                        return throttleCounter;
                     }
-                    else
-                    {
-                        memCache.Add(
-                            id,
-                            throttleCounter,
-                            new CacheItemPolicy()
-                            {
 
-                                SlidingExpiration = expirationTime
-                            });
-                    }
+                    throttleCounter = new ThrottleCounter()
+                    {
+                        Timestamp = DateTime.UtcNow,
+                        TotalRequests = 1
+                    };
+                    memCache.Add(
+                        id,
+                        throttleCounter,
+                        new CacheItemPolicy()
+                        {
+
+                            SlidingExpiration = expirationTime
+                        });
 
                     return throttleCounter;
                 }

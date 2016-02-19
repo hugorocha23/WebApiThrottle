@@ -180,7 +180,7 @@ namespace WebApiThrottle
             return defRates;
         }
 
-        internal ThrottleCounter ProcessRequest(RequestIdentity requestIdentity, TimeSpan timeSpan, RateLimitPeriod period, out string id)
+        internal ThrottleKeyCounter ProcessRequest(RequestIdentity requestIdentity, TimeSpan timeSpan, RateLimitPeriod period)
         {
             var throttleCounter = new ThrottleCounter()
             {
@@ -188,7 +188,7 @@ namespace WebApiThrottle
                 TotalRequests = 1
             };
 
-            id = ComputeThrottleKey(requestIdentity, period);
+            var id = ComputeThrottleKey(requestIdentity, period);
 
             // serial reads and writes
             lock (ProcessLocker)
@@ -215,16 +215,24 @@ namespace WebApiThrottle
                 Repository.Save(id, throttleCounter, timeSpan);
             }
 
-            return throttleCounter;
+            return new ThrottleKeyCounter
+            {
+                Key = id,
+                ThrottleCounter = throttleCounter
+            };
         }
 
-        internal async Task<KeyValuePair<ThrottleCounter, string>> ProcessRequestAsync(RequestIdentity requestIdentity, TimeSpan timeSpan, RateLimitPeriod period)
+        internal async Task<ThrottleKeyCounter> ProcessRequestAsync(RequestIdentity requestIdentity, TimeSpan timeSpan, RateLimitPeriod period)
         {
             var id = ComputeThrottleKey(requestIdentity, period);
 
             var throttleCounter = await Repository.IncAsync(id, timeSpan);
 
-            return new KeyValuePair<ThrottleCounter, string>(throttleCounter, id);
+            return new ThrottleKeyCounter
+            {
+                Key = id,
+                ThrottleCounter = throttleCounter
+            };
         }
 
         internal TimeSpan GetTimeSpanFromPeriod(RateLimitPeriod rateLimitPeriod)
