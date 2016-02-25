@@ -130,103 +130,15 @@ namespace WebApiThrottle
         /// </summary>
         public bool RepositorySynchronized { get; set; }
 
+        /// <summary>
+        /// Gets or sets a flag that will be used to know if an error is raised when computing throttle
+        /// </summary>
+        public bool RaiseError { get; set; }
+
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            // get policy from repo
-            if (policyRepository != null)
-            {
-                policy = policyRepository.FirstOrDefault(ThrottleManager.GetPolicyKey());
-            }
-
-            if (policy == null || (!policy.IpThrottling && !policy.ClientThrottling && !policy.EndpointThrottling))
-            {
-                return await base.SendAsync(request, cancellationToken);
-            }
-
-            core.Repository = Repository;
-            core.Policy = policy;
-
-            var identity = SetIndentity(request);
-
-            if (core.IsWhitelisted(identity))
-            {
-                return await base.SendAsync(request, cancellationToken);
-            }
-
-            TimeSpan timeSpan = TimeSpan.FromSeconds(1);
-
-            // get default rates
-            var defRates = core.RatesWithDefaults(Policy.Rates.ToList());
-            if (Policy.StackBlockedRequests)
-            {
-                // all requests including the rejected ones will stack in this order: week, day, hour, min, sec
-                // if a client hits the hour limit then the minutes and seconds counters will expire and will eventually get erased from cache
-                defRates.Reverse();
-            }
-
-            // apply policy
-            foreach (var rate in defRates)
-            {
-                var rateLimitPeriod = rate.Key;
-                var rateLimit = rate.Value;
-
-                timeSpan = core.GetTimeSpanFromPeriod(rateLimitPeriod);
-
-                // apply global rules
-                core.ApplyRules(identity, timeSpan, rateLimitPeriod, ref rateLimit);
-
-                if (rateLimit > 0)
-                {
-                    // increment counter
-                    ThrottleKeyCounter throttleKeyCounter;
-
-                    if (!RepositorySynchronized)
-                    {
-                        throttleKeyCounter = core.ProcessRequest(identity, timeSpan, rateLimitPeriod);
-                    }
-                    else
-                    {
-                        throttleKeyCounter = await core.ProcessRequestAsync(identity, timeSpan, rateLimitPeriod);          
-                    }
-
-                    var throttleCounter = throttleKeyCounter.ThrottleCounter;
-                    var requestId = throttleKeyCounter.Key;
-
-                    // check if key expired
-                    if (throttleCounter.Timestamp + timeSpan < DateTime.UtcNow)
-                    {
-                        continue;
-                    }
-
-                    // check if limit is reached
-                    if (throttleCounter.TotalRequests > rateLimit)
-                    {
-                        // log blocked request
-                        if (Logger != null)
-                        {
-                            Logger.Log(core.ComputeLogEntry(requestId, identity, throttleCounter, rateLimitPeriod.ToString(), rateLimit, request));
-                        }
-
-                        var message = !string.IsNullOrEmpty(this.QuotaExceededMessage)
-                            ? this.QuotaExceededMessage
-                            : "API calls quota exceeded! maximum admitted {0} per {1}.";
-
-                        var content = this.QuotaExceededContent != null
-                            ? this.QuotaExceededContent(rateLimit, rateLimitPeriod)
-                            : string.Format(message, rateLimit, rateLimitPeriod);
-
-                        // break execution
-                        return await QuotaExceededResponse(
-                            request,
-                            content,
-                            QuotaExceededResponseCode,
-                            core.RetryAfterFrom(throttleCounter.Timestamp, rateLimitPeriod));
-                    }
-                }
-            }
-
-            // no throttling required
-            return await base.SendAsync(request, cancellationToken);
+            var response = await ComputeThrottlingAsync(request);
+            return response ?? await base.SendAsync(request, cancellationToken);
         }
 
         protected IPAddress GetClientIp(HttpRequestMessage request)
@@ -256,6 +168,123 @@ namespace WebApiThrottle
             var response = request.CreateResponse(responseCode, content);
             response.Headers.Add("Retry-After", new string[] { retryAfter });
             return Task.FromResult(response);
+        }
+
+        protected virtual void OnComputeThrottlingError(HttpRequestMessage request, Exception ex)
+        {
+            //throw error
+            if (RaiseError)
+            {
+                throw ex;
+            }
+        }
+
+        private async Task<HttpResponseMessage> ComputeThrottlingAsync(HttpRequestMessage request)
+        {
+            try
+            {
+                // get policy from repo
+                if (policyRepository != null)
+                {
+                    policy = policyRepository.FirstOrDefault(ThrottleManager.GetPolicyKey());
+                }
+
+                if (policy == null || (!policy.IpThrottling && !policy.ClientThrottling && !policy.EndpointThrottling))
+                {
+                    // no throttling required
+                    return null;
+                }
+
+                core.Repository = Repository;
+                core.Policy = policy;
+
+                var identity = SetIndentity(request);
+
+                if (core.IsWhitelisted(identity))
+                {
+                    // no throttling required
+                    return null;
+                }
+
+                TimeSpan timeSpan = TimeSpan.FromSeconds(1);
+
+                // get default rates
+                var defRates = core.RatesWithDefaults(Policy.Rates.ToList());
+                if (Policy.StackBlockedRequests)
+                {
+                    // all requests including the rejected ones will stack in this order: week, day, hour, min, sec
+                    // if a client hits the hour limit then the minutes and seconds counters will expire and will eventually get erased from cache
+                    defRates.Reverse();
+                }
+
+                // apply policy
+                foreach (var rate in defRates)
+                {
+                    var rateLimitPeriod = rate.Key;
+                    var rateLimit = rate.Value;
+
+                    timeSpan = core.GetTimeSpanFromPeriod(rateLimitPeriod);
+
+                    // apply global rules
+                    core.ApplyRules(identity, timeSpan, rateLimitPeriod, ref rateLimit);
+
+                    if (rateLimit > 0)
+                    {
+                        // increment counter
+                        ThrottleKeyCounter throttleKeyCounter;
+
+                        if (!RepositorySynchronized)
+                        {
+                            throttleKeyCounter = core.ProcessRequest(identity, timeSpan, rateLimitPeriod);
+                        }
+                        else
+                        {
+                            throttleKeyCounter = await core.ProcessRequestAsync(identity, timeSpan, rateLimitPeriod);
+                        }
+
+                        var throttleCounter = throttleKeyCounter.ThrottleCounter;
+                        var requestId = throttleKeyCounter.Key;
+
+                        // check if key expired
+                        if (throttleCounter.Timestamp + timeSpan < DateTime.UtcNow)
+                        {
+                            continue;
+                        }
+
+                        // check if limit is reached
+                        if (throttleCounter.TotalRequests > rateLimit)
+                        {
+                            // log blocked request
+                            if (Logger != null)
+                            {
+                                Logger.Log(core.ComputeLogEntry(requestId, identity, throttleCounter,
+                                    rateLimitPeriod.ToString(), rateLimit, request));
+                            }
+
+                            var message = !string.IsNullOrEmpty(this.QuotaExceededMessage)
+                                ? this.QuotaExceededMessage
+                                : "API calls quota exceeded! maximum admitted {0} per {1}.";
+
+                            var content = this.QuotaExceededContent != null
+                                ? this.QuotaExceededContent(rateLimit, rateLimitPeriod)
+                                : string.Format(message, rateLimit, rateLimitPeriod);
+
+                            // break execution
+                            return await QuotaExceededResponse(
+                                request,
+                                content,
+                                QuotaExceededResponseCode,
+                                core.RetryAfterFrom(throttleCounter.Timestamp, rateLimitPeriod));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                OnComputeThrottlingError(request, ex);
+            }
+
+            return null;
         }
     }
 }
