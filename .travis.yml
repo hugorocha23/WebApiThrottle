@@ -1,7 +1,8 @@
 language: csharp
 dist: trusty
 dotnet: 1.0.4
-mono: none
+mono: 
+  - 4.0.30319
 env:
   global:
     - DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
