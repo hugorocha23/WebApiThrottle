@@ -1,6 +1,6 @@
 language: csharp
 dist: trusty
-dotnet: 4.5
+dotnet: 1.0.1
 mono: none
 env:
   global:
