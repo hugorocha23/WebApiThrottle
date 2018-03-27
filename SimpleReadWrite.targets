@@ -1,0 +1,6 @@
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <UsingTask AssemblyFile="MSBuildPlugin.dll" TaskName="SimpleReadWrite"  />
+  <Target Name="AfterBuild">
+    <SimpleReadWrite ProjectPath="$(MSBuildProjectDirectory)" />
+  </Target>
+</Project>
