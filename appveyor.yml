@@ -1,5 +1,5 @@
 version: 1.0.{build}
 build:
   verbosity: normal
-build_script:
-  Get-Project -All | & "DependencyAnalyzer.exe"
+after_build:
+  Get-ChildItem -Path ".\bin" -Filter DotnetDependencyAnalyzer.exe -Recurse -ErrorAction SilentlyContinue -Force | ForEach-Object{% {& $_.FullName}}
