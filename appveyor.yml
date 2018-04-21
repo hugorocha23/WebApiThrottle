@@ -2,4 +2,4 @@ version: 1.0.{build}
 build:
   verbosity: normal
 after_build:
-  Get-ChildItem -Path ".\bin" -Filter DotnetDependencyAnalyzer.exe -Recurse -ErrorAction SilentlyContinue -Force | ForEach-Object{% {& $_.FullName}}
+  powershell Get-ChildItem -Path ".\bin" -Filter DotnetDependencyAnalyzer.exe -Recurse -ErrorAction SilentlyContinue -Force | ForEach-Object{% {& $_.FullName}}
