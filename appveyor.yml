@@ -1,3 +1,5 @@
 version: 1.0.{build}
 build:
   verbosity: normal
+build_script:
+  Get-Project -All | % {& "DependencyAnalyzer.exe"}
