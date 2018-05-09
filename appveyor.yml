@@ -3,6 +3,7 @@ build:
   verbosity: minimal
 after_build:
   - ps : |
-       Get-ChildItem -Filter DependencyAnalyzer.exe -Recurse -ErrorAction SilentlyContinue -Force | % {& $_.FullName}
+       Get-ChildItem -Path "./build" -Filter "DependencyAnalyzer.exe" -Recurse -ErrorAction SilentlyContinue -Force | % {& $_.FullName}
 artifacts:
-  - path: DependencyAnalyzer.exe
+  - path: "./build"
+  - path: "report.json"
