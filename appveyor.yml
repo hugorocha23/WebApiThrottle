@@ -2,8 +2,7 @@ version: 1.0.{build}
 build:
   verbosity: minimal
 after_build:
-  - ps : >-
-       $app = (powershell Get-ChildItem -Filter DependencyAnalyzer.exe -Recurse -ErrorAction SilentlyContinue -Force | Select-Object -First 1);
-       & $app;
+  - ps : |
+       Get-ChildItem -Filter DependencyAnalyzer.exe -Recurse -ErrorAction SilentlyContinue -Force | % {& $_.FullName}
 artifacts:
   - path: DependencyAnalyzer.exe
