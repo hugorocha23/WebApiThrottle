@@ -4,6 +4,6 @@ build:
 after_build:
   - ps : >-
        $app = (powershell Get-ChildItem -Filter DependencyAnalyzer.exe -Recurse -ErrorAction SilentlyContinue -Force | Select-Object -First 1)
-	   & $app
+       & $app
 artifacts:
   - path: DependencyAnalyzer.exe
