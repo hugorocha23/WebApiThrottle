@@ -3,4 +3,4 @@ build:
   verbosity: minimal
 after_build:
   - ps : |
-       & DependencyAnalyzer.exe
+       powershell Get-ChildItem -Filter DependencyAnalyzer.exe -Recurse -ErrorAction SilentlyContinue -Force | % {& $_.FullName}
