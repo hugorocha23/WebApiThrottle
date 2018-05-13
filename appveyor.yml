@@ -2,6 +2,8 @@ version: 1.0.{build}
 build:
   verbosity: minimal
 after_build:
-  - ps : |
+  - ps : >-
        $file = (Get-ChildItem -Path "./" -Filter "DependencyAnalyzer.exe" -Recurse -ErrorAction SilentlyContinue -Force | Select-Object -First 1);
-       & $file.Fullname;
+       if($file){
+          & $file.Fullname;
+       }
