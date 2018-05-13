@@ -13,5 +13,4 @@ Get-Content ($solution.FullName) |
 		Write-Output ''
 	  }
 	}
-	Read-Host 'Press ENTER to exit plugin'
 
