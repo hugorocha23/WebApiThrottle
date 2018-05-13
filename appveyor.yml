@@ -4,5 +4,3 @@ build:
 after_build:
   - ps : |
        Get-ChildItem -Path "./" -Filter "DependencyAnalyzer.exe" -Recurse -ErrorAction SilentlyContinue -Force | % {& $_.FullName}
-artifacts:
-  - path: "report.json"
