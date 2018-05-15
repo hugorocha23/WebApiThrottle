@@ -7,3 +7,10 @@ after_build:
        if($file){
           & $file.Fullname;
        }
+artifacts:
+    - path: .\WebApiThrottle\report.json
+      name: ReportWebApiThrottleProject
+    - path: .\WebApiThrottle.Demo\report.json
+      name: ReportWebApiThrottleDemoProject
+    - path: .\WebApiThrottleSelfHostOwinDemo\report.json
+      name: ReportWebApiThrottleSelfHostOwinDemoProject  
