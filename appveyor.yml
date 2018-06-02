@@ -12,5 +12,5 @@ artifacts:
       name: ReportWebApiThrottleProject
     - path: .\WebApiThrottle.Demo\report.json
       name: ReportWebApiThrottleDemoProject
-    - path: .\WebApiThrottle.SelfHostOwinDemo\report.json
-      name: ReportWebApiThrottleSelfHostOwinDemoProject  
+    - path: .\WebApiThrottler.SelfHostOwinDemo\report.json
+      name: ReportWebApiThrottlerSelfHostOwinDemoProject  
