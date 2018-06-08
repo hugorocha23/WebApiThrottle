@@ -48,7 +48,7 @@
       <HintPath>..\packages\Antlr.3.5.0.2\lib\Antlr3.Runtime.dll</HintPath>
     </Reference>
     <Reference Include="DotnetDependencyAnalyzer, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\DotnetDependencyAnalyzer.1.2.0-alpha8\lib\DotnetDependencyAnalyzer.exe</HintPath>
+      <HintPath>..\packages\DotnetDependencyAnalyzer.1.2.0-alpha9\lib\DotnetDependencyAnalyzer.exe</HintPath>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
