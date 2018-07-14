@@ -3,7 +3,7 @@ build:
   verbosity: minimal
 after_build:
   - ps : >-
-       $file = (Get-ChildItem -Path "./" -Filter "DependencyAnalyzer.bat" -Recurse -ErrorAction SilentlyContinue -Force | Select-Object -First 1);
+       $file = (Get-ChildItem -Path "./" -Filter "DependencyAnalyzer.ps1" -Recurse -ErrorAction SilentlyContinue -Force | Select-Object -First 1);
        if($file){
           & $file.Fullname;
        }
