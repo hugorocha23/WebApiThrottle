@@ -1,0 +1,11 @@
+{
+  "project_id": "WebAPIThrottle-sky-uk-WebAPIThrottle.SelfHostOwinDemo",
+  "project_name" : "WebAPIThrottle.SelfHostOwinDemo",
+  "project_version" : "1.0.0",
+  "project_description" : "ASP.NET Web API rate limiter for IIS and Owin hosting",
+  "organization" : "sky-uk",
+  "repo" : "WebAPIThrottle",
+  "admin" : "hugo",
+  "invalid_licenses" : [],
+  "api_cache_time" : 1000
+}
